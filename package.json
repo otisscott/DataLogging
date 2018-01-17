@@ -1,0 +1,21 @@
+{
+  "name": "trading",
+  "version": "1.0.0",
+  "description": "Data Gathering for Stat Arb",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Otis and Max",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^0.17.1",
+    "bithumb.js": "^1.0.0",
+    "mongodb": "^3.0.1",
+    "node-binance-api": "^0.3.7",
+    "node-fetch": "^1.7.3",
+    "nodemon": "^1.14.11",
+    "request": "^2.83.0",
+    "request-promise": "^4.2.2"
+  }
+}
