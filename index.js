@@ -4,6 +4,8 @@ const binance = require('node-binance-api');
 const mongodb = require("mongodb");
 const request = require('request');
 const ObjectID = mongodb.ObjectID;
+const TEST = 'spreads';
+const ADD = 'count';
 binance.options({
   'APIKEY':'pj8LcG8MKOewrzwTlkPnNlhaTqIyYVr4MSxqZ5WhTlpv6IaMKXKqrb4CBQTohlKy',
   'APISECRET':'BahF1uTx6x62W87E6mbnONYMDmE8M70EOqvFlNcrqeV32iuBqhuUJw6Zql1f8IB3',
@@ -64,6 +66,12 @@ async function oneSec() {
 
 async function fiveSecs() {
   await sleep(5000);
+  console.log("done");
+}
+
+async function oneMin() {
+  await sleep(6000);
+  console.log("done")
 }
 async function fiveMin() {
   await sleep(300000);
@@ -71,7 +79,6 @@ async function fiveMin() {
 
 
 binance.prices(function(ticker) {
-  console.log(ticker);
   USDtoBTC = parseInt(ticker.BTCUSDT);
   console.log(USDtoBTC);
 	usXRP = parseFloat(ticker.XRPBTC) * USDtoBTC;
@@ -96,15 +103,25 @@ async function koreanPrices() {
 function checkSpread(kXRPB, kETHB, kETHS, kXRPS) {
   let EthToXrpSpread;
   let XrpToEthSpread;
-  EthToXrpSpread = ((kETHB / usETH) / (kXRPSusXRP));
+  EthToXrpSpread = ((kETHB / usETH) / (kXRPS/ usXRP));
   XrpToEthSpread = ((kXRPB / usXRP) / (kETHS/ usETH));
   if(XrpToEthSpread > 1.01) {
     console.log("XRP to ETH spread is good to go: ", XrpToEthSpread);
+    db.collection(TEST).insertOne({spread: XrpToEthSpread});
+    db.collection(ADD).insertOne(1);
+    oneMin();
+    koreanPrices();
   } else if (EthToXrpSpread > 1.01) {
     console.log("ETH to XRP spread is good to go: ", EthToXrpSpread);
+    db.collection(TEST).insertOne(EthToXrpSpread);
+    db.collection(ADD).insertOne(1);
+    oneMin();
+    koreanPrices();
   } else {
     console.log("The spread is too small. ETH to XRP is: ", EthToXrpSpread, " and XRP to ETH is: ", XrpToEthSpread);
-
+    oneMin();
+    koreanPrices();
   }
 }
 koreanPrices();
+fiveSecs();
