@@ -23,7 +23,6 @@ mongodb.MongoClient.connect(connectString, (err, database) => {
   }
   db = database;
   console.log("Database connection ready");
-  // Initialize the app.
 });
 
 let krwTousd;
@@ -35,17 +34,14 @@ async function waitForCurrency() {
     });
   });
 }
-
-/*async function main() {
+async function getConversion() {
   try {
-    krwTousd = await getQuote();
-
-    console.log(krwTousd)
+    krwTousd = await waitForCurrency();
+    krwTousd = parseFloat(krwTousd.substring(49,59));
   } catch(error) {
     console.error(error);
   }
-}*/
-
+}
 let koreanXRPBuy;
 let koreanXRPSell;
 let usXRP;
@@ -66,12 +62,10 @@ async function oneSec() {
 
 async function fiveSecs() {
   await sleep(5000);
-  console.log("done");
 }
 
 async function oneMin() {
-  await sleep(6000);
-  console.log("done")
+  await sleep(6000000);
 }
 async function fiveMin() {
   await sleep(300000);
@@ -80,48 +74,54 @@ async function fiveMin() {
 
 binance.prices(function(ticker) {
   USDtoBTC = parseInt(ticker.BTCUSDT);
-  console.log(USDtoBTC);
 	usXRP = parseFloat(ticker.XRPBTC) * USDtoBTC;
   usETH = parseFloat(ticker.ETHBTC) * USDtoBTC;
 });
 async function koreanPrices() {
   try {
-    let promises = [bithumb.getTicker('XRP'), bithumb.getTicker('ETH'), bithumb.getTicker('ETH'), bithumb.getTicker('XRP'), waitForCurrency()]
+    let promises = [bithumb.getTicker('XRP'), bithumb.getTicker('ETH'), bithumb.getTicker('ETH'), bithumb.getTicker('XRP')]
     let prices = await Promise.all(promises);
-    krwTousd = prices[4];
-    krwTousd = parseFloat(krwTousd.substring(49,59));
-    koreanXRPBuy = parseInt((prices[0]).data.buy_price) * krwTousd;
-    koreanETHBuy = parseInt((prices[1]).data.buy_price) * krwTousd;
-    koreanETHSell = parseInt((prices[2]).data.sell_price) * krwTousd;
-    koreanXRPSell = parseInt((prices[3]).data.sell_price) * krwTousd;
-    console.log(koreanXRPBuy, koreanETHBuy, koreanETHSell, koreanXRPSell, krwTousd);
-    checkSpread(koreanXRPBuy, koreanETHBuy, koreanETHSell, koreanXRPSell);
+    koreanXRPBuy = parseInt((prices[0]).data.buy_price);
+    koreanETHBuy = parseInt((prices[1]).data.buy_price);
+    koreanETHSell = parseInt((prices[2]).data.sell_price);
+    koreanXRPSell = parseInt((prices[3]).data.sell_price);
   } catch(err) {
     console.log("I fucked up")
+  }
+}
+async function ready() {
+  try {
+    let promises = [koreanPrices(), getConversion(), ];
+    await Promise.all(promises);
+    koreanXRPBuy = koreanXRPBuy * krwTousd;
+    koreanETHBuy = koreanETHBuy * krwTousd;
+    koreanXRPSell = koreanXRPSell * krwTousd;
+    koreanETHSell = koreanETHSell * krwTousd;
+    checkSpread(koreanXRPBuy, koreanETHBuy, koreanETHSell, koreanXRPSell);
+  } catch(err) {
+    console.log("Korean prices or conversion rate not applying correctly ", err)
   }
 }
 function checkSpread(kXRPB, kETHB, kETHS, kXRPS) {
   let EthToXrpSpread;
   let XrpToEthSpread;
-  EthToXrpSpread = ((kETHB / usETH) / (kXRPS/ usXRP));
-  XrpToEthSpread = ((kXRPB / usXRP) / (kETHS/ usETH));
-  if(XrpToEthSpread > 1.01) {
+  EthToXrpSpread = ((kETHB / usETH) / (kXRPS / usXRP));
+  XrpToEthSpread = ((kXRPB / usXRP) / (kETHS / usETH));
+  if(XrpToEthSpread > 1.001) {
+    const spread = JSON.stringify({spread: XrpToEthSpread});
+    spread.createDate = new Date();
+    db.collection(TEST).insertOne(spread);
     console.log("XRP to ETH spread is good to go: ", XrpToEthSpread);
-    db.collection(TEST).insertOne({spread: XrpToEthSpread});
-    db.collection(ADD).insertOne(1);
-    oneMin();
-    koreanPrices();
-  } else if (EthToXrpSpread > 1.01) {
+    setTimeout(ready, 60000);
+  } else if (EthToXrpSpread > 1.001) {
+    const spread = JSON.stringify({spread: EthToXrpSpread});
+    spread.createDate = new Date();
+    db.collection(TEST).insertOne(spread);
     console.log("ETH to XRP spread is good to go: ", EthToXrpSpread);
-    db.collection(TEST).insertOne(EthToXrpSpread);
-    db.collection(ADD).insertOne(1);
-    oneMin();
-    koreanPrices();
+    setTimeout(ready, 60000);
   } else {
     console.log("The spread is too small. ETH to XRP is: ", EthToXrpSpread, " and XRP to ETH is: ", XrpToEthSpread);
-    oneMin();
-    koreanPrices();
+    setTimeout(ready, 60000);
   }
 }
-koreanPrices();
-fiveSecs();
+ready();
