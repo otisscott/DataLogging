@@ -1,5 +1,5 @@
 const Bithumb = require('bithumb.js')
-const bithumb = new Bithumb('de363fbb5d8d7115a88aac3e66ce18ab', 'e201d9f0579ca6f13a6c3b2d56c87890');
+const bithumb = new Bithumb('deez', 'nutz');
 const binance = require('node-binance-api');
 const mongodb = require("mongodb");
 const request = require('request');
@@ -7,8 +7,8 @@ const ObjectID = mongodb.ObjectID;
 const TEST = 'spreads';
 const ADD = 'count';
 binance.options({
-  'APIKEY':'pj8LcG8MKOewrzwTlkPnNlhaTqIyYVr4MSxqZ5WhTlpv6IaMKXKqrb4CBQTohlKy',
-  'APISECRET':'BahF1uTx6x62W87E6mbnONYMDmE8M70EOqvFlNcrqeV32iuBqhuUJw6Zql1f8IB3',
+  'APIKEY':'deezy',
+  'APISECRET':'nutz',
   'test': true
 });
 
