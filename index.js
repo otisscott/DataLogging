@@ -1,34 +1,19 @@
-const Bithumb = require('bithumb.js')
-const bithumb = new Bithumb('deez', 'nutz');
-const binance = require('node-binance-api');
-const mongodb = require("mongodb");
-const request = require('request');
-const ObjectID = mongodb.ObjectID;
-const TEST = 'spreads';
-const ADD = 'count';
+const Bithumb = require("bithumb.js")
+const bithumb = new Bithumb("no",	"sike");
+const binance = require("node-binance-api");
+const request = require("request");
 binance.options({
-  'APIKEY':'deezy',
-  'APISECRET':'nutz',
-  'test': true
+  "APIKEY":"no",
+  "APISECRET":"sike"
 });
-
-let db;
-
-const connectString = "mongodb://otisscott:Zacharys13@ds251217.mlab.com:51217/korean_arb_data_gathering";
-
-mongodb.MongoClient.connect(connectString, (err, database) => {
-  if (err) {
-    console.log(err);
-    process.exit(1);
-  }
-  db = database;
-  console.log("Database connection ready");
-});
-
+let spread = [];
+let goodSpread = [];
+let count = 0;
+let goodCount = 0;
 let krwTousd;
 async function waitForCurrency() {
   return new Promise(function(resolve, reject) {
-    request('https://api.fixer.io/latest?base=KRW&symbols=USD', function(error, response, body) {
+    request("https://api.fixer.io/latest?base=KRW&symbols=USD", function(error, response, body) {
       if (error) return reject(error);
       resolve(body);
     });
@@ -42,86 +27,145 @@ async function getConversion() {
     console.error(error);
   }
 }
-let koreanXRPBuy;
-let koreanXRPSell;
-let usXRP;
-let koreanETHBuy;
-let koreanETHSell;
-let usETH;
-let USDtoBTC;
-
-function sleep(ms){
-    return new Promise(resolve=>{
-        setTimeout(resolve,ms)
-    })
-}
-
-async function oneSec() {
-  await sleep(1000);
-}
-
-async function fiveSecs() {
-  await sleep(5000);
-}
-
-async function oneMin() {
-  await sleep(6000000);
-}
-async function fiveMin() {
-  await sleep(300000);
-}
-
-
-binance.prices(function(ticker) {
-  USDtoBTC = parseInt(ticker.BTCUSDT);
-	usXRP = parseFloat(ticker.XRPBTC) * USDtoBTC;
-  usETH = parseFloat(ticker.ETHBTC) * USDtoBTC;
-});
+let koreanCurrencyBBBuy, koreanCurrencyBSell, usCurrencyB, koreanCurrencyABuy, koreanCurrencyASell, usCurrencyA, USDtoBTC, usCurrencyABalance, usCurrencyBBalance, koreanCurrencyABalance, koreanCurrencyBBalance;
 async function koreanPrices() {
+  binance.prices((error, ticker) => {
+    USDtoBTC = parseInt(ticker.BTCUSDT);
+    usB = parseFloat(ticker.CurrencyBBTC) * USDtoBTC;
+    usCurrencyA = parseFloat(ticker.CurrencyABTC) * USDtoBTC;
+  });
+  binance.useServerTime(function() {
+    binance.balance((error, balances) => {
+      usCurrencyABalance = balances.CurrencyA.available;
+      usCurrencyBBalance = balances.CurrencyB.available;
+    });
+  })
   try {
-    let promises = [bithumb.getTicker('XRP'), bithumb.getTicker('ETH'), bithumb.getTicker('ETH'), bithumb.getTicker('XRP')]
+    let promises = [bithumb.getTicker("CurrencyB"), bithumb.getTicker("CurrencyA"), bithumb.getTicker("CurrencyA"), bithumb.getTicker("B"), bithumb.getBalance("B"), bithumb.getBalance("CurrencyA")]
     let prices = await Promise.all(promises);
-    koreanXRPBuy = parseInt((prices[0]).data.buy_price);
-    koreanETHBuy = parseInt((prices[1]).data.buy_price);
-    koreanETHSell = parseInt((prices[2]).data.sell_price);
-    koreanXRPSell = parseInt((prices[3]).data.sell_price);
+    koreanCurrencyBBuy = parseInt((prices[0]).data.buy_price);
+    koreanCurrencyABuy = parseInt((prices[1]).data.buy_price);
+    koreanCurrencyASell = parseInt((prices[2]).data.sell_price);
+    koreanCurrencyBSell = parseInt((prices[3]).data.sell_price);
+    koreanBBalance = prices[4].data.available_CurrencyB;
+    koreanCurrencyABalance = prices[5].data.available_CurrencyA;
   } catch(err) {
-    console.log("I fucked up")
+    console.log("Korean Data not working")
   }
 }
 async function ready() {
   try {
     let promises = [koreanPrices(), getConversion(), ];
     await Promise.all(promises);
-    koreanXRPBuy = koreanXRPBuy * krwTousd;
-    koreanETHBuy = koreanETHBuy * krwTousd;
-    koreanXRPSell = koreanXRPSell * krwTousd;
-    koreanETHSell = koreanETHSell * krwTousd;
-    checkSpread(koreanXRPBuy, koreanETHBuy, koreanETHSell, koreanXRPSell);
+    koreanCurrencyBBuy = koreanCurrencyBBuy * krwTousd;
+    koreanCurrencyABuy = koreanCurrencyABuy * krwTousd;
+    koreanCurrencyBSell = koreanCurrencyBSell * krwTousd;
+    koreanCurrencyASell = koreanCurrencyASell * krwTousd;
+    checkSpread(koreanCurrencyBBuy, koreanCurrencyABuy, koreanCurrencyASell, koreanCurrencyBSell);
   } catch(err) {
     console.log("Korean prices or conversion rate not applying correctly ", err)
   }
 }
-function checkSpread(kXRPB, kETHB, kETHS, kXRPS) {
-  let EthToXrpSpread;
-  let XrpToEthSpread;
-  EthToXrpSpread = ((kETHB / usETH) / (kXRPS / usXRP));
-  XrpToEthSpread = ((kXRPB / usXRP) / (kETHS / usETH));
-  if(XrpToEthSpread > 1.001) {
-    const spread = JSON.stringify({spread: XrpToEthSpread});
-    spread.createDate = new Date();
-    db.collection(TEST).insertOne(spread);
-    console.log("XRP to ETH spread is good to go: ", XrpToEthSpread);
-    setTimeout(ready, 60000);
-  } else if (EthToXrpSpread > 1.001) {
-    const spread = JSON.stringify({spread: EthToXrpSpread});
-    spread.createDate = new Date();
-    db.collection(TEST).insertOne(spread);
-    console.log("ETH to XRP spread is good to go: ", EthToXrpSpread);
-    setTimeout(ready, 60000);
+function checkSpread(kCurrencyBB, kCurrencyAB, kCurrencyAS, kCurrencyBS) {
+  let CurrencyAToCurrencyBSpread;
+  let CurrencyBToCurrencyASpread;
+  CurrencyAToCurrencyBSpread = ((kCurrencyAB / usCurrencyA) / (kCurrencyBS / usCurrencyB));
+  BToCurrencyASpread = ((kCurrencyBB / usCurrencyB) / (kCurrencyAS / usCurrencyA));
+  if(BToCurrencyASpread > 1.001) {
+    console.log("CurrencyB to CurrencyA spread is good to go: ", CurrencyBToCurrencyASpread);
+    spread.push(CurrencyBToCurrencyASpread);
+    goodSpread.push(CurrencyBToCurrencyASpread);
+    count += 1;
+    goodCount += 1;
+    setTimeout(ready, 5000);
+  } else if (CurrencyAToCurrencyBSpread > 1.001) {
+    console.log("CurrencyA to CurrencyB spread is good to go: ", CurrencyAToCurrencyBSpread);
+    spread.push(CurrencyAToCurrencyBSpread);
+    goodSpread.push(CurrencyAToCurrencyBSpread);
+    count += 1;
+    goodCount += 1;
+    setTimeout(ready, 5000);
   } else {
-    console.log("The spread is too small. ETH to XRP is: ", EthToXrpSpread, " and XRP to ETH is: ", XrpToEthSpread);
-    setTimeout(ready, 60000);
+    console.log("The spread is too small. CurrencyA to CurrencyB is: ", CurrencyAToCurrencyBSpread, " and CurrencyB to CurrencyA is: ", CurrencyBToCurrencyASpread);
+    count += 1;
+    if(typeof(CurrencyAToCurrencyCurrencyBSpread) == "number" && typeof(CurrencyBToCurrencyASpread) == "number") {
+      if(CurrencyAToCurrencyBSpread < CurrencyBToCurrencyASpread) {
+        spread.push(CurrencyBToCurrencyASpread);
+      } else {
+        spread.push(CurrencyAToCurrencyBSpread);
+      }
+    } else {
+      console.log("CurrencyAPI lag on start")
+    }
+    setTimeout(ready, 5000);
+  }
+}
+function dailyCurrencyAvg() {
+  let avgSpread = 0;
+  for(let i = 0; i < spread.length; i++) {
+    avgSpread += spread[i];
+  }
+  avgSpread = ((avgSpread / count) - 1) * 100;
+  console.log("The average spread in the past day has been ", avgSpread, "%");
+  let percentage = 0;
+  percentage = goodCount/count * 100;
+  console.log("The margin has been tradable ", percentage, "% of the time in the past day");
+  setTimeout(dailyCurrencyAvg, 120000);
+}
+function CurrencyBtoCurrencyAUS() {
+    let quantity = usCurrencyBBalance / usCurrencyA - 1;
+    binance.marketSell("CurrencyBCurrencyA", quantity);
+}
+async function CurrencyBKoreatoUS() {
+  try {
+    await bithumb.btcWithdrawl((koreanCurrencyBBalance - (1 / usCurrencyB)), "address", "key", "CurrencyB");
+  } catch(err) {
+    console.log("Korean CurrencyB withdraw failed")
+  }
+}
+function CurrencyBUStoKorea() {
+    let quantity = usCurrencyBBalance / usCurrencyB - 1;
+    binance.withdraw("CurrencyB", "address", quantity, "key");
+}
+async function CurrencyBtoCurrencyAKorea() {
+  try {
+      let quantity = koreanCurrencyBBalance / koreanCurrencyABuy - 1;
+      await bithumb.marketSell("B", "CurrencyA",);
+  } catch(err) {
+      console.log("Korean CurrencyB to CurrencyA failed")
+  }
+}
+function CurrencyAtoCurrencyBUS() {
+  if(usCurrencyABalance > (5000 / usCurrencyA)) {
+    let quantity = 5000 / usCurrencyB - 1;
+    binance.marketBuy("CurrencyBCurrencyA", quantity);
+  } else {
+    let quantity = usCurrencyABalance / usCurrencyB - 1;
+    binance.marketBuy("CurrencyBCurrencyA", quantity);
+  }
+}
+async function CurrencyAKoreatoUS() {
+  try {
+    await bithumb.btcWithdrawl((koreanCurrencyABalance - (1 / usCurrencyA)), "0x9fac38bd12df93d52fdd658222c3b3884a8376c8", "", "CurrencyA");
+  } catch(err) {
+    console.log("I probably buttered the destination part")
+  }
+}
+function CurrencyAUStoKorea() {
+  if(usCurrencyABalance > (5000 / usCurrencyA)) {
+    let quantity = 5000 / usCurrencyA - 1;
+    binance.withdraw("CurrencyA", "0xfbee64a423ebe49ff216474cca17be5681a824c6", quantity);
+  } else {
+    let quantity = usCurrencyABalance / usCurrencyA - 1;
+    binance.withdraw("CurrencyA", "0xfbee64a423ebe49ff216474cca17be5681a824c6", quantity);
+  }
+}
+async function CurrencyAtoCurrencyBKorea() {
+  try {
+      await bithumb.marketSell("CurrencyB", "CurrencyA",);
+  } catch(err) {
+      console.log("Korean CurrencyA to CurrencyB failed")
   }
 }
 ready();
+setTimeout(dailyCurrencyAvg, 120000)
